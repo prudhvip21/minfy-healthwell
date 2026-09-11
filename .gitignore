@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/last-good.json
+.DS_Store
+~$*.docx
