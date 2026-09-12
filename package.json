@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "node --env-file-if-exists=.env --watch server/index.js",
+    "dev:api": "node --env-file-if-exists=.env server/index.js",
+    "dev:api:watch": "node --env-file-if-exists=.env --watch server/index.js",
     "dev:web": "vite",
     "import": "node --env-file-if-exists=.env server/planImport.js",
     "build": "vite build",

@@ -77,7 +77,6 @@ export function Verdict({ verdict }) {
     rejected: ['red', 'rejected'],
     pass: ['green', 'pass'],
     review: ['amber', 'review'],
-    flagged: ['amber', 'flagged'],
   };
   const [tone, label] = map[verdict] || ['', verdict];
   return <span className={`chip ${tone}`}>{label}</span>;

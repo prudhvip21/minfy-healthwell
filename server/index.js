@@ -5,7 +5,7 @@ import path from 'node:path';
 import { all, get, run, json, ROOT } from './db.js';
 import { hasKey, MODELS, transcribe } from './openai.js';
 import {
-  dayEntries, dayTotals, behaviourScore, today, activePlan, streak, daysSinceLastCheckin, SLOTS,
+  dayEntries, dayTotals, behaviourScore, today, addDays, activePlan, streak, daysSinceLastCheckin, SLOTS,
 } from './engine.js';
 import { importPlans, needsBootstrap, listPlanFiles } from './planImport.js';
 import { resetDemo } from './reset.js';
@@ -356,10 +356,26 @@ if (fs.existsSync(dist)) {
 
 /* ------------------------------ boot ------------------------------- */
 
+/**
+ * True when the seeded history is missing or older than yesterday — either
+ * the demo sat overnight, or a reset was interrupted partway.
+ */
+function isHistoryStale() {
+  if (!get('SELECT COUNT(*) AS n FROM users').n) return false;
+  const row = get('SELECT MAX(date) AS d FROM checkins');
+  return !row?.d || row.d < addDays(today(), -1);
+}
+
 async function boot() {
   if (needsBootstrap()) {
     console.log('Empty database — bootstrapping users, plans and history …');
     await importPlans();
+  } else if (isHistoryStale()) {
+    // Seeded history is relative to "today". Left overnight, the personas drift
+    // (a 20-day streak reads as 0), so rebuild it. Parsed plans are kept, so
+    // this costs nothing at the API.
+    console.log('Seeded history is from a previous day — refreshing demo state …');
+    await resetDemo({ log: () => {} });
   } else if (hasKey() && listPlanFiles().length
     && all("SELECT id FROM plans WHERE parse_status != 'parsed'").length) {
     // A key has appeared since users were put on fallback plans: parse the real
