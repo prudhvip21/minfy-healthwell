@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Card, Lane, Spinner, Degraded, ErrorBox, TraceStrip, PlanList, Confidence } from '../components.jsx';
+import { Card, Spinner, Degraded, ErrorBox, TraceStrip, PlanList, Confidence } from '../components.jsx';
 
 export default function Explain({ user }) {
   const [plan, setPlan] = useState(null);
@@ -29,7 +29,6 @@ export default function Explain({ user }) {
 
       <div className="split">
         <div className="stack">
-          <Lane kind="user" />
           <Card title="Tap an item — why is it here?" hint={plan?.date}>
             <PlanList slots={plan?.slots || []} onItem={explain} selectedId={selected?.id} />
           </Card>
@@ -50,7 +49,6 @@ export default function Explain({ user }) {
         </div>
 
         <div className="stack">
-          <Lane kind="system" />
           <ErrorBox error={error} />
           {busy && <div className="card empty"><Spinner /> Explaining…</div>}
           {!data && !busy && <div className="card empty">Pick an item.</div>}

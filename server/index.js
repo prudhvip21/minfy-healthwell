@@ -9,7 +9,7 @@ import {
 } from './engine.js';
 import { importPlans, needsBootstrap, listPlanFiles } from './planImport.js';
 import { resetDemo } from './reset.js';
-import { extractAndLog } from './agents/logging.js';
+import { extractAndLog, logSelection } from './agents/logging.js';
 import { proposeAdjustment, decide, reviewQueue } from './agents/planswap.js';
 import { detectSignals, generateNudges, listNudges, markNudge, TONE_BANDS } from './agents/trigger.js';
 import { generateReward, streakTarget } from './agents/reward.js';
@@ -213,7 +213,28 @@ app.post('/api/checkin', h(async (req, res) => {
   res.json({ transcript, logged, reward, adjustment, plan: dayTotals(user.id, today()) });
 }));
 
+/** Menu-style check-in: tick items off the plan, plus optional free-text extras. */
+app.post('/api/checkin/select', h(async (req, res) => {
+  const user = userOr404(req, res); if (!user) return;
+  const { slot, entryIds = [], extras = '', reward: wantReward = true } = req.body;
+
+  const logged = await logSelection({ user, slot, entryIds: entryIds.map(Number), extras });
+  if (!logged.items.length) return res.status(400).json({ error: 'Nothing selected.' });
+
+  const reward = wantReward
+    ? await generateReward({ user, checkinResult: logged }).catch((e) => ({ error: e.message }))
+    : null;
+
+  res.json({ transcript: null, logged, reward, adjustment: null, plan: dayTotals(user.id, today()) });
+}));
+
 /* ---------------------------- plan loop ---------------------------- */
+
+/** Readjust the day from what actually happened — no meal input needed. */
+app.post('/api/plan/readjust', h(async (req, res) => {
+  const user = userOr404(req, res); if (!user) return;
+  res.json(await proposeAdjustment({ user, date: req.body.date || today(), trigger: 'readjust' }));
+}));
 
 app.post('/api/plan/propose', h(async (req, res) => {
   const user = userOr404(req, res); if (!user) return;

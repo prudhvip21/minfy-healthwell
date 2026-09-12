@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import MealInput from '../MealInput.jsx';
 import {
-  Card, Lane, Spinner, Confidence, Degraded, ErrorBox, Verdict, TraceStrip, PlanBoard, Macros, Flow, slotsFor, shortFlag,
+  Card, Spinner, Confidence, Degraded, ErrorBox, Verdict, TraceStrip, PlanBoard, Macros, Flow, shortFlag,
 } from '../components.jsx';
 
 const SAMPLES = {
@@ -33,7 +33,9 @@ export default function CheckIn({ user, onChange }) {
     const before = new Set(plan?.slots.flatMap((s) => s.items).filter((i) => i.status !== 'planned').map((i) => i.id));
     try {
       // Log and show it at once; the plan-swap agent is a separate, slower hop.
-      const r = await api.post('/api/checkin', { userId: user.id, ...payload, autoAdjust: false });
+      const r = payload.modality === 'menu'
+        ? await api.post('/api/checkin/select', { userId: user.id, slot: payload.slot, entryIds: payload.entryIds, extras: payload.extras })
+        : await api.post('/api/checkin', { userId: user.id, ...payload, autoAdjust: false });
       setResult(r);
       await refreshPlan(before);
       setBusy(false);
@@ -77,7 +79,6 @@ export default function CheckIn({ user, onChange }) {
 
       <div className="split phone-left">
         <div>
-          <Lane kind="user" />
           <div className="phone screen">
             <div className="phone-top">
               <small>{greet}, {user.name.split(' ')[0]}</small>
@@ -87,7 +88,7 @@ export default function CheckIn({ user, onChange }) {
             <div className="phone-body stack">
               {!logged ? (
                 <>
-                  <MealInput key={round} onSubmit={submit} busy={busy} samples={SAMPLES[user.id]} slots={slotsFor(plan)} busyLabel="Logging…" />
+                  <MealInput key={round} onSubmit={submit} busy={busy} samples={SAMPLES[user.id]} plan={plan} busyLabel="Logging…" />
                   <ErrorBox error={error} />
                 </>
               ) : (
@@ -98,9 +99,7 @@ export default function CheckIn({ user, onChange }) {
         </div>
 
         <div className="stack">
-          <Lane kind="system" />
-
-          <Card title={`Today · ${plan?.date || ''}`} hint={plan?.plan?.source_file || 'fallback plan'}>
+          <Card title={`Today · ${plan?.date || ''}`}>
             <PlanBoard slots={plan?.slots || []} justIds={justIds} />
             <div style={{ marginTop: 14, maxWidth: 460 }}><Macros totals={plan?.totals} /></div>
           </Card>

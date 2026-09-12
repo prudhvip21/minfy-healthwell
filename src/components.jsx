@@ -17,16 +17,6 @@ export function Card({ title, hint, icon, children, pad = true, className = '', 
   );
 }
 
-export function Lane({ kind = 'user', children }) {
-  return (
-    <div className={`lane-label ${kind}`}>
-      <span className="dot" />
-      {kind === 'user' ? 'What the user sees' : 'What the platform did'}
-      {children}
-    </div>
-  );
-}
-
 export function Spinner() { return <span className="spin" />; }
 
 export function Confidence({ value, label = true }) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { stream } from '../api.js';
-import { Card, Lane, Spinner, TraceStrip } from '../components.jsx';
+import { Card, Spinner, TraceStrip } from '../components.jsx';
 
 const PROMPTS = {
   ananya: ['How am I doing this week?', 'Can I have peanut chikki as a snack?', 'Why is there ghee in so many meals?'],
@@ -89,7 +89,6 @@ export default function Assistant({ user, onChange }) {
 
       <div className="split">
         <div>
-          <Lane kind="user" />
           <div className="card chat">
             <div className="chat-log">
               {log.length === 0 && (
@@ -120,7 +119,6 @@ export default function Assistant({ user, onChange }) {
         </div>
 
         <div className="stack">
-          <Lane kind="system" />
           <Card title="Tools">
             <div className="stack small" style={{ gap: 6 }}>
               {[

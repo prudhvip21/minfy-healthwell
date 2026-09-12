@@ -331,6 +331,21 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .phone.screen { width: 392px; max-width: 100%; min-height: 700px; display: flex; flex-direction: column; }
 .phone.screen .phone-body { flex: 1; }
 
+.day-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.day-stats > div { border: 1px solid var(--line); border-radius: 11px; padding: 10px 6px; }
+.day-stats b { display: block; font-size: 22px; font-weight: 700; line-height: 1.1; }
+.day-stats span { font-size: 11px; color: var(--muted); }
+
+.pick {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px;
+  cursor: pointer; background: var(--card); font-size: 13px;
+}
+.pick:hover { border-color: var(--green-line); }
+.pick.on { border-color: var(--green); background: var(--green-soft); }
+.pick.done { opacity: .55; cursor: default; background: #fbfcfb; }
+.pick input { width: 16px; height: 16px; accent-color: var(--green); flex: none; }
+
 .tabs.spread { display: flex; width: 100%; }
 .tabs.spread .tab { flex: 1; text-align: center; padding-inline: 4px; }
 

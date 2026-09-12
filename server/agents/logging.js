@@ -19,6 +19,68 @@ import {
   dayEntries, findMatch, markEaten, recordOffPlan, withMacros, normaliseSlot, today,
 } from '../engine.js';
 
+/**
+ * Menu-style logging: the user ticks what they ate from their own plan.
+ *
+ * No model is involved for the ticked items — the plan already says what they
+ * are, so this is pure engine work and returns instantly. Only free-text
+ * "extras" go to the logging agent, because those need parsing.
+ */
+export async function logSelection({ user, date = today(), slot, entryIds = [], extras = '' }) {
+  const chosenSlot = normaliseSlot(slot);
+  const open = new Set(['planned', 'added']);
+  const entries = dayEntries(user.id, date).filter((e) => entryIds.includes(e.id) && open.has(e.status));
+
+  let checkinId = null;
+  const items = [];
+
+  if (entries.length) {
+    checkinId = insert('checkins', {
+      user_id: user.id, date, slot: chosenSlot, modality: 'menu',
+      raw_text: `Ticked ${entries.length} planned item(s)`,
+    });
+    for (const e of entries) {
+      markEaten(e.id);
+      insert('checkin_items', {
+        checkin_id: checkinId, user_id: user.id, name: e.name, qty: e.qty, unit: e.unit,
+        kcal: e.kcal, protein_g: e.protein_g, carbs_g: e.carbs_g, fat_g: e.fat_g,
+        confidence: 1, verdict: 'matched', matched_entry_id: e.id,
+      });
+      items.push({
+        name: e.name, qty: e.qty, unit: e.unit, kcal: e.kcal, protein_g: e.protein_g,
+        carbs_g: e.carbs_g, fat_g: e.fat_g, confidence: 1, verdict: 'matched', matched: { ...e, status: 'eaten' },
+      });
+    }
+    insert('events', {
+      user_id: user.id, type: 'checkin',
+      payload_json: { date, modality: 'menu', items: entries.length, slot: chosenSlot },
+    });
+  }
+
+  // Anything the plan doesn't cover still needs the agent.
+  let extrasResult = null;
+  if (extras && extras.trim()) {
+    extrasResult = await extractAndLog({ user, modality: 'text', text: extras, slot: chosenSlot, date });
+    items.push(...extrasResult.items);
+  }
+
+  return {
+    checkinId: checkinId ?? extrasResult?.checkinId ?? null,
+    slot: chosenSlot,
+    observation: `${entries.length} item(s) ticked from the plan${extrasResult ? `, plus extras` : ''}`,
+    overallConfidence: 1,
+    items,
+    guardrails: extrasResult?.guardrails ?? null,
+    matched: items.filter((i) => i.verdict === 'matched'),
+    unplanned: items.filter((i) => i.verdict === 'unplanned' || i.verdict === 'flagged'),
+    flagged: items.filter((i) => i.verdict === 'flagged'),
+    blocked: [],
+    traceId: extrasResult?.traceId ?? null,
+    degraded: extrasResult?.degraded ?? false,
+    degradedNote: extrasResult?.degradedNote,
+  };
+}
+
 const ITEMS_SCHEMA = jsonSchema('logged_meal', {
   type: 'object',
   additionalProperties: false,

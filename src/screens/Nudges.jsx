@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Card, Lane, Spinner, Degraded, ErrorBox, TraceStrip } from '../components.jsx';
+import { Card, Spinner, Degraded, ErrorBox, TraceStrip } from '../components.jsx';
 
 const BAND_TONE = { reach_out: 'red', restart: 'amber', nudge: 'blue', celebrate: 'green' };
 const WHAT_IF = [['', 'Actual'], ['0.05', '5%'], ['0.2', '20%'], ['0.5', '50%'], ['0.85', '85%']];
@@ -69,7 +69,6 @@ export default function Nudges({ user, onChange }) {
 
       <div className="split">
         <div>
-          <Lane kind="user" />
           <div className="phone" style={{ background: 'linear-gradient(160deg,#1d2b36,#2d4252)', border: 0 }}>
             <div style={{ padding: '26px 18px 8px', color: '#fff', textAlign: 'center' }}>
               <div style={{ fontSize: 44, fontWeight: 300, lineHeight: 1 }}>
@@ -107,7 +106,6 @@ export default function Nudges({ user, onChange }) {
         </div>
 
         <div className="stack">
-          <Lane kind="system" />
           <ErrorBox error={error} />
           <Degraded note={last?.degradedNote} />
 

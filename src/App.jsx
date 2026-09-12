@@ -19,7 +19,7 @@ const NAV = [
   ] },
   { group: 'Phase 1 · Engagement', items: [
     { id: 'checkin', label: 'Daily Check-in', ico: '📸', uc: 'checkin', n: 1 },
-    { id: 'planloop', label: 'Plan Change Loop', ico: '🔁', uc: 'planloop', n: 2 },
+    { id: 'planloop', label: 'Readjust Plan', ico: '🔁', uc: 'planloop', n: 2 },
     { id: 'nudges', label: 'Re-engagement', ico: '🔔', uc: 'nudges', n: 3 },
     { id: 'assistant', label: 'Wellness Assistant', ico: '💬', uc: 'assistant', n: 4 },
     { id: 'score', label: 'Behaviour Score', ico: '📈', uc: 'score', n: 5 },

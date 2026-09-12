@@ -437,8 +437,20 @@ export function validateSwap(user, proposal) {
   const date = proposal.date || today();
   const entries = dayEntries(user.id, date);
   const byId = new Map(entries.map((e) => [e.id, e]));
+  const movable = (e) => e && (e.status === 'planned' || e.status === 'added');
 
-  const removals = (proposal.removals || []).map((id) => byId.get(Number(id))).filter(Boolean);
+  // Moves push an untouched dish to a later day instead of wasting it.
+  const horizon = addDays(today(), 14);
+  const moves = [];
+  for (const mv of proposal.moves || []) {
+    const entry = byId.get(Number(mv.entry_id ?? mv.entryId));
+    const to = mv.to_date || mv.toDate;
+    if (!movable(entry) || !to) continue;
+    if (to <= date || to > horizon) continue;          // forward only, inside the plan horizon
+    moves.push({ entry, to });
+  }
+
+  const removals = (proposal.removals || []).map((id) => byId.get(Number(id))).filter(movable);
   const additions = (proposal.additions || []).map((a) => withMacros({
     ...a, slot: normaliseSlot(a.slot), qty: a.qty ?? 1,
   }));
@@ -446,11 +458,13 @@ export function validateSwap(user, proposal) {
   const conflicts = profileConflicts(user, additions);
   const blocking = conflicts.filter((c) => c.severity === 'high');
 
+  // A moved item leaves today just as a removed one does.
+  const gone = [...removals, ...moves.map((m) => m.entry)];
   const delta = {
-    kcal: round(sumOf(additions, 'kcal') - sumOf(removals, 'kcal')),
-    protein_g: round(sumOf(additions, 'protein_g') - sumOf(removals, 'protein_g')),
-    carbs_g: round(sumOf(additions, 'carbs_g') - sumOf(removals, 'carbs_g')),
-    fat_g: round(sumOf(additions, 'fat_g') - sumOf(removals, 'fat_g')),
+    kcal: round(sumOf(additions, 'kcal') - sumOf(gone, 'kcal')),
+    protein_g: round(sumOf(additions, 'protein_g') - sumOf(gone, 'protein_g')),
+    carbs_g: round(sumOf(additions, 'carbs_g') - sumOf(gone, 'carbs_g')),
+    fat_g: round(sumOf(additions, 'fat_g') - sumOf(gone, 'fat_g')),
   };
 
   const targets = json(planTargets(user.id), {});
@@ -463,13 +477,13 @@ export function validateSwap(user, proposal) {
   if (kcalDriftPct > 0.15) {
     reasons.push(`Swap moves the day by ${delta.kcal > 0 ? '+' : ''}${delta.kcal} kcal (${Math.round(kcalDriftPct * 100)}% of the day's budget), past the 15% auto-apply limit.`);
   }
-  if (!additions.length && !removals.length) reasons.push('Proposal changes nothing.');
+  if (!additions.length && !removals.length && !moves.length) reasons.push('Proposal changes nothing.');
   if (additions.some((a) => a.macro_source === 'estimated')) {
     reasons.push('Macros for one or more added items are estimated, not from the plan.');
   }
 
   return {
-    date, removals, additions, delta, conflicts, blocking,
+    date, removals, additions, moves, delta, conflicts, blocking,
     kcalDriftPct: round(kcalDriftPct * 100) / 100,
     valid: blocking.length === 0,
     reasons,
@@ -504,6 +518,18 @@ export function gate({ validation, confidence }) {
 export function applySwap(user, validation) {
   for (const e of validation.removals) {
     run("UPDATE plan_entries SET status = 'swapped' WHERE id = ?", e.id);
+  }
+
+  // Moves: off today's plate, onto the target day.
+  for (const { entry, to } of validation.moves || []) {
+    run("UPDATE plan_entries SET status = 'swapped' WHERE id = ?", entry.id);
+    insert('plan_entries', {
+      user_id: user.id, date: to, slot: entry.slot, time_hint: entry.time_hint,
+      plan_item_id: entry.plan_item_id, name: entry.name, qty: entry.qty, unit: entry.unit,
+      kcal: entry.kcal, protein_g: entry.protein_g, carbs_g: entry.carbs_g, fat_g: entry.fat_g,
+      macro_source: entry.macro_source, status: 'planned',
+      swapped_from: `moved from ${validation.date}`,
+    });
   }
   const ids = [];
   for (const a of validation.additions) {

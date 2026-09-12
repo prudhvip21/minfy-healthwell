@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { fileToDataUrl, shrinkImage, blobToBase64 } from './api.js';
-import { Spinner } from './components.jsx';
+import { Spinner, slotsFor } from './components.jsx';
 
 const SLOT_LABEL = { 'Wake up': 'Wake up', Breakfast: 'Breakfast', 'Mid-Morning': 'Mid-morning', Lunch: 'Lunch', Snack: 'Snack', 'Post Exercise': 'Post-exercise', Dinner: 'Dinner', 'Post Dinner': 'Post-dinner' };
 
@@ -46,10 +46,13 @@ function SlotBar({ slots, value, onChange, disabled }) {
  * onSubmit receives { slot, modality, text, imageDataUrl, audioBase64, mime, seconds }.
  * `slots` is today's plan by slot: [{ slot, time, done, total }].
  */
-export default function MealInput({ onSubmit, busy, samples = [], slots = [], submitLabel = 'Log meal', busyLabel = 'Checking…' }) {
+export default function MealInput({ onSubmit, busy, samples = [], plan = null, submitLabel = 'Log meal', busyLabel = 'Checking…' }) {
+  const slots = slotsFor(plan);
   const [slot, setSlot] = useState(null);
   const activeSlot = slot || currentSlot(slots);
-  const [mode, setMode] = useState('photo');
+  const [mode, setMode] = useState('menu');
+  const [picked, setPicked] = useState({});
+  const [extras, setExtras] = useState('');
   const [text, setText] = useState('');
   const [image, setImage] = useState(null);
   const [recording, setRecording] = useState(false);
@@ -94,6 +97,10 @@ export default function MealInput({ onSubmit, busy, samples = [], slots = [], su
 
   async function submit() {
     const payload = { modality: mode, slot: activeSlot || null };
+    if (mode === 'menu') {
+      payload.entryIds = Object.keys(picked).filter((id) => picked[id]).map(Number);
+      payload.extras = extras;
+    }
     if (mode === 'photo') { payload.imageDataUrl = image; payload.text = text; }
     if (mode === 'text') payload.text = text;
     if (mode === 'voice') {
@@ -104,16 +111,43 @@ export default function MealInput({ onSubmit, busy, samples = [], slots = [], su
     onSubmit(payload);
   }
 
-  const ready = !busy && ((mode === 'photo' && image) || (mode === 'text' && text.trim()) || (mode === 'voice' && audio));
+  const slotItems = (plan?.slots || []).find((s) => s.slot === activeSlot)?.items || [];
+  const menuItems = slotItems.filter((i) => i.status !== 'swapped');
+  const pickedCount = Object.values(picked).filter(Boolean).length;
+
+  const ready = !busy && (
+    (mode === 'menu' && (pickedCount > 0 || extras.trim()))
+    || (mode === 'photo' && image) || (mode === 'text' && text.trim()) || (mode === 'voice' && audio));
 
   return (
     <div className="stack">
       {slots.length > 0 && <SlotBar slots={slots} value={activeSlot} onChange={setSlot} disabled={busy} />}
       <div className="tabs spread">
-        {[['photo', '📸 Photo'], ['voice', '🎙 Voice'], ['text', '⌨ Text']].map(([k, l]) => (
+        {[['menu', '☑ Menu'], ['photo', '📸 Photo'], ['voice', '🎙 Voice'], ['text', '⌨ Text']].map(([k, l]) => (
           <button key={k} className={`tab ${mode === k ? 'on' : ''}`} onClick={() => setMode(k)} disabled={busy}>{l}</button>
         ))}
       </div>
+
+      {mode === 'menu' && (
+        <div className="stack" style={{ gap: 10 }}>
+          {menuItems.length === 0 && <div className="small muted center">Nothing planned for this meal.</div>}
+          {menuItems.map((i) => {
+            const done = i.status === 'eaten' || i.status === 'offplan';
+            return (
+              <label key={i.id} className={`pick ${done ? 'done' : ''} ${picked[i.id] ? 'on' : ''}`}>
+                <input type="checkbox" disabled={done || busy}
+                  checked={done || Boolean(picked[i.id])}
+                  onChange={(e) => setPicked((p) => ({ ...p, [i.id]: e.target.checked }))} />
+                <span className="grow">{i.name}</span>
+                <span className="tiny muted">{i.qty ?? ''} {i.unit || ''}</span>
+                {done && <span className="tiny" style={{ color: i.status === 'offplan' ? '#c2491a' : 'var(--green-dark)' }}>{i.status === 'offplan' ? 'off-plan' : 'logged'}</span>}
+              </label>
+            );
+          })}
+          <input className="input" placeholder="Anything extra? e.g. 2 samosas, a coffee"
+            value={extras} onChange={(e) => setExtras(e.target.value)} disabled={busy} />
+        </div>
+      )}
 
       {mode === 'photo' && (
         <>
