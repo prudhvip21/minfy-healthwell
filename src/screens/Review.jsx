@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Card, Spinner, ErrorBox, Verdict, Confidence, TraceStrip } from '../components.jsx';
+import { Spinner, ErrorBox, Verdict, Confidence, TraceStrip } from '../components.jsx';
 import { EngineView } from './PlanLoop.jsx';
+
+const iconFor = (r) => {
+  if (r.kind === 'swap') return '🔁';
+  if (r.kind === 'exposure') return '⚠';
+  if (r.proposal?.conflict) return r.proposal.conflict.severity === 'high' ? '⛔' : '⚠';
+  return '📄';
+};
 
 export default function Review({ user, users, onChange }) {
   const [rows, setRows] = useState([]);
-  const [scope, setScope] = useState('all');
+  const [mine, setMine] = useState(false);
   const [filter, setFilter] = useState('pending');
   const [busyId, setBusyId] = useState(null);
+  const [open, setOpen] = useState(null);
   const [error, setError] = useState(null);
 
-  const load = () => api.get(`/api/review${scope === 'user' ? `?userId=${user.id}` : ''}`).then(setRows).catch(setError);
-  useEffect(() => { load(); }, [scope, user.id]);
+  const load = () => api.get(`/api/review${mine ? `?userId=${user.id}` : ''}`).then(setRows).catch(setError);
+  useEffect(() => { load(); }, [mine, user.id]);
 
   async function decide(id, decision) {
     setBusyId(id); setError(null);
@@ -22,97 +30,59 @@ export default function Review({ user, users, onChange }) {
     } catch (e) { setError(e); } finally { setBusyId(null); }
   }
 
-  const shown = rows.filter((r) => (filter === 'all' ? true : filter === 'pending' ? r.status === 'pending' : r.status !== 'pending'));
-  const counts = {
-    pending: rows.filter((r) => r.status === 'pending').length,
-    swap: rows.filter((r) => r.status === 'pending' && r.kind === 'swap').length,
-    parse: rows.filter((r) => r.status === 'pending' && r.kind === 'parse_review').length,
-    exposure: rows.filter((r) => r.status === 'pending' && r.kind === 'exposure').length,
-  };
-  const nameOf = (id) => users.find((u) => u.id === id)?.name || id;
+  const shown = rows.filter((r) => (filter === 'pending' ? r.status === 'pending' : r.status !== 'pending'));
+  const pending = rows.filter((r) => r.status === 'pending').length;
+  const first = (id) => (users.find((u) => u.id === id)?.name || id).split(' ')[0];
 
   return (
     <>
       <div className="page-head">
-        <div>
-          <h1>Dietitian Queue</h1>
-          <p className="sub">Everything the platform won't decide alone. Approval re-runs the engine first.</p>
-        </div>
+        <div><h1>Dietitian Queue</h1></div>
         <div className="actions">
+          <button className="btn sm ghost" onClick={() => setMine(!mine)}>
+            {mine ? first(user.id) : 'All users'}
+          </button>
           <div className="tabs">
-            <button className={`tab ${scope === 'all' ? 'on' : ''}`} onClick={() => setScope('all')}>All users</button>
-            <button className={`tab ${scope === 'user' ? 'on' : ''}`} onClick={() => setScope('user')}>{user.name.split(' ')[0]}</button>
-          </div>
-          <div className="tabs">
-            {['pending', 'decided', 'all'].map((f) => (
-              <button key={f} className={`tab ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>{f}</button>
-            ))}
+            <button className={`tab ${filter === 'pending' ? 'on' : ''}`} onClick={() => setFilter('pending')}>Pending {pending > 0 && <b>{pending}</b>}</button>
+            <button className={`tab ${filter === 'decided' ? 'on' : ''}`} onClick={() => setFilter('decided')}>Decided</button>
           </div>
         </div>
-      </div>
-
-      <div className="row wrap" style={{ marginBottom: 14 }}>
-        <span className="chip amber">{counts.pending} pending</span>
-        <span className="chip">{counts.swap} plan changes</span>
-        <span className="chip">{counts.parse} document checks</span>
-        {counts.exposure > 0 && <span className="chip red">{counts.exposure} conflict alerts</span>}
       </div>
 
       <ErrorBox error={error} />
 
-      <div className="stack">
-        {shown.length === 0 && <div className="card empty">Nothing here. {filter === 'pending' && 'The queue is clear.'}</div>}
+      <div className="card">
+        {shown.length === 0 && <div className="empty">{filter === 'pending' ? 'Queue is clear.' : 'Nothing decided yet.'}</div>}
         {shown.map((r) => (
-          <Card key={r.id}
-            title={r.summary}
-            icon={r.kind === 'swap' ? '🔁' : r.kind === 'exposure' ? '⚠' : r.proposal?.conflict ? '⛔' : '📄'}
-            hint={`${nameOf(r.user_id)} · #${r.id} · ${r.created_at?.slice(0, 16)}`}>
-            <div className="stack" style={{ gap: 10 }}>
-              {r.kind === 'swap' ? (
-                <EngineView change={r} />
-              ) : r.proposal?.conflict ? (
-                <>
-                  <div className="row wrap">
-                    <span className={`chip ${r.proposal.conflict.severity === 'high' ? 'red' : 'amber'}`}>
-                      {r.proposal.conflict.kind} · {r.proposal.conflict.allergen} · {r.proposal.conflict.severity}
-                    </span>
-                    <span className="small muted">from {r.proposal.source_file}</span>
-                  </div>
-                  <div className="small">
-                    {r.kind === 'exposure'
-                      ? `Reported at ${r.proposal.occurrences?.[0]?.slot} · ${r.proposal.occurrences?.[0]?.date} · logged and counted`
-                      : `Affects ${(r.proposal.items || [r.proposal.conflict.item]).join(', ')} · ${(r.proposal.occurrences || []).length}× in plan`}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="row wrap">
-                    <span className="small">Parser confidence</span> <Confidence value={r.confidence} />
-                    <span className="small muted">from {r.proposal?.source_file}</span>
-                  </div>
-                  <div className="small">Source: <code>{r.proposal?.source_text}</code>
-                    {(r.proposal?.occurrences || []).length > 1 && <span className="muted"> · {r.proposal.occurrences.length}×</span>}</div>
-                </>
-              )}
-
-              <div className="row">
-                {r.status === 'pending' ? (
-                  <>
-                    <button className="btn primary sm" disabled={busyId === r.id} onClick={() => decide(r.id, 'approved')}>
-                      {busyId === r.id ? <Spinner /> : '✓'} {r.kind === 'swap' ? 'Approve change' : 'Acknowledge'}
-                    </button>
-                    <button className="btn sm danger" disabled={busyId === r.id} onClick={() => decide(r.id, 'rejected')}>✕ Reject</button>
-                  </>
-                ) : (
-                  <>
-                    <Verdict verdict={r.status} />
-                    <span className="small muted">{r.reviewer ? `by ${r.reviewer}` : 'by the engine'} · {r.decided_at?.slice(0, 16)}</span>
-                  </>
-                )}
-              </div>
-              {r.trace_id && <TraceStrip ids={[r.trace_id]} title="Agent call" />}
+          <div key={r.id}>
+            <div className="q-row" onClick={() => setOpen(open === r.id ? null : r.id)}>
+              <span title={r.kind.replace('_', ' ')}>{iconFor(r)}</span>
+              <span className="q-sum">{r.summary}</span>
+              <span className="q-user">{first(r.user_id)}</span>
+              {r.status === 'pending' ? (
+                <span className="row" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                  <button className="btn sm primary" disabled={busyId === r.id} onClick={() => decide(r.id, 'approved')}>
+                    {busyId === r.id ? <Spinner /> : 'Approve'}
+                  </button>
+                  <button className="btn sm danger" disabled={busyId === r.id} onClick={() => decide(r.id, 'rejected')} title="Reject">✕</button>
+                </span>
+              ) : <Verdict verdict={r.status} />}
             </div>
-          </Card>
+
+            {open === r.id && (
+              <div className="q-detail stack">
+                <div className="small muted">{r.reason}</div>
+                {r.kind === 'swap' && <EngineView change={r} />}
+                {r.kind === 'parse_review' && r.proposal?.source_text && (
+                  <div className="small">Source: <code>{r.proposal.source_text}</code> <Confidence value={r.confidence} /></div>
+                )}
+                {r.status !== 'pending' && (
+                  <div className="tiny muted">{r.reviewer || 'engine'} · {r.decided_at?.slice(0, 16)}</div>
+                )}
+                {r.trace_id && <TraceStrip ids={[r.trace_id]} title="Agent call" />}
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </>

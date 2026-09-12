@@ -269,7 +269,7 @@ function raiseReviews(user, planId, lowConfidence, allItems, file, { includePars
     const days = g.occurrences.map((o) => o.day);
     insert('plan_changes', {
       user_id: user.id, kind: 'parse_review',
-      summary: `Unclear plan item: "${g.name}" (${g.slot}, Day ${days.join(', ')})`,
+      summary: `Unclear: "${g.name}" · ${g.slot}${g.occurrences.length > 1 ? ` ×${g.occurrences.length}` : ''}`,
       proposal_json: { ...g, source_file: file },
       confidence: g.confidence,
       status: 'pending',
@@ -295,11 +295,13 @@ function raiseReviews(user, planId, lowConfidence, allItems, file, { includePars
   for (const g of groupsByTerm.values()) {
     const c = g.conflict;
     const items = [...g.items];
-    const against = c.kind === 'allergy' ? `${c.allergen} allergy` : `${user.diet} diet`;
+    const against = c.kind === 'allergy' ? `${c.allergen} allergy` : `not ${user.diet}`;
     insert('plan_changes', {
       user_id: user.id,
       kind: 'parse_review',
-      summary: `${c.severity === 'high' ? 'Conflict' : 'Check'}: ${c.matched} vs. ${against}${items.length > 1 ? ` (${items.length} items)` : ` — "${items[0]}"`}`,
+      summary: items.length > 1
+        ? `${c.matched} in ${items.length} items · ${against}`
+        : `${items[0]} · ${against}`,
       proposal_json: { conflict: c, items, occurrences: g.occurrences, source_file: file },
       confidence: null,
       status: 'pending',

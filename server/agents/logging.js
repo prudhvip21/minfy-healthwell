@@ -229,7 +229,7 @@ with your best name and a low confidence rather than leaving it out.${slotHint}`
       // A dietitian needs to know the user ate something their profile rules out.
       insert('plan_changes', {
         user_id: user.id, kind: 'exposure',
-        summary: `Ate ${item.name} — ${conflict.kind === 'allergy' ? `${conflict.allergen} allergy` : `${user.diet} diet`}`,
+        summary: `Ate ${item.name} · ${conflict.kind === 'allergy' ? `${conflict.allergen} allergy` : `not ${user.diet}`}`,
         proposal_json: {
           conflict, items: [item.name], occurrences: [{ date, slot }], checkin_id: checkinId,
         },
