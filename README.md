@@ -22,6 +22,9 @@ On first start, the server parses every `.docx` in `plans/` with GPT-5. It makes
 
 The **Reset demo** button in the app does the free reset.
 
+**[FUNCTIONAL-SPEC.md](FUNCTIONAL-SPEC.md)** documents every screen: what it shows, and how each
+number on it is calculated.
+
 ## Plan documents
 
 Put dietitian `.docx` files in `plans/`. The assignment of documents to users is written to `data/plan-map.json` on first run, and you can edit it by hand. With fewer documents than users, documents are shared round-robin.
