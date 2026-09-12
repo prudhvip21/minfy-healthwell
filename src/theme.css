@@ -292,6 +292,48 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .drop:hover { border-color: var(--green); color: var(--green-dark); }
 .drop img { max-width: 100%; max-height: 220px; border-radius: 10px; display: block; margin: 0 auto; }
 
+/* ---------------------- plan board (timetable) --------------------- */
+
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1500px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.meal {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: #fcfdfc; padding: 9px 11px 10px;
+}
+.meal-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 5px; }
+.meal-head b { font-size: 12.5px; }
+.meal-head span { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+
+.meal .li {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 3px 4px; border-radius: 6px; margin: 0 -4px; font-size: 12px; line-height: 1.35;
+}
+.meal .li:hover { background: var(--line-2); }
+.meal .li i { width: 6px; height: 6px; border-radius: 50%; background: #d4dcd8; flex: none; margin-top: 5px; }
+.meal .li .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.meal .li .q { font-size: 10.5px; color: var(--muted); white-space: nowrap; margin-top: 1px; }
+.meal .li.eaten i { background: var(--green); }
+.meal .li.eaten .n { color: var(--green-dark); }
+.meal .li.added i { background: var(--blue); }
+.meal .li.offplan i { background: var(--orange); }
+.meal .li.offplan .n { color: #c2491a; }
+.meal .li.offplan.flagged i { background: var(--red); }
+.meal .li.offplan.flagged .n { color: #b3262b; }
+.meal .li.swapped { opacity: .45; }
+.meal .li.swapped .n { text-decoration: line-through; }
+.meal .li.just { animation: flash 1.6s ease-out; }
+
+/* A left column that really is phone-sized. */
+.split.phone-left { grid-template-columns: 392px minmax(0, 1fr); }
+@media (max-width: 1100px) { .split.phone-left { grid-template-columns: 1fr; } }
+.phone.screen { width: 392px; max-width: 100%; min-height: 700px; display: flex; flex-direction: column; }
+.phone.screen .phone-body { flex: 1; }
+
+.tabs.spread { display: flex; width: 100%; }
+.tabs.spread .tab { flex: 1; text-align: center; padding-inline: 4px; }
+
 .slotbar { display: flex; flex-wrap: wrap; gap: 5px; }
 .slot-pill {
   display: inline-flex; align-items: center; gap: 5px; flex: none;

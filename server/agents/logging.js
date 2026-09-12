@@ -76,8 +76,17 @@ export async function extractAndLog({ user, modality, text = '', imageDataUrl = 
   const slotHint = chosenSlot ? ` The user says this was their ${chosenSlot}.` : '';
 
   const prompt = imageDataUrl
-    ? `Identify every food item in this photograph of a meal.${slotHint}`
-    : `Extract every food item from this meal description.${slotHint}\n\n<user_input>\n${gateIn.clean}\n</user_input>`;
+    ? `Identify EVERY food and drink in this photograph, and give a quantity for each.
+
+Work across the whole plate, not just the obvious dish. Include side dishes, chutneys,
+pickles, curd, salad, papad, drinks and any garnish or visible added fat (a spoon of
+ghee, a drizzle of oil). Count what is countable — idlis, rotis, eggs, pieces — and
+estimate volume for everything else in cups, tablespoons or glasses.
+
+If two portions of the same food are on the plate, give one item with the combined
+quantity. If something is partly hidden or you cannot tell what it is, still list it
+with your best name and a low confidence rather than leaving it out.${slotHint}`
+    : `Extract every food and drink from this meal description, with a quantity for each.${slotHint}\n\n<user_input>\n${gateIn.clean}\n</user_input>`;
 
   const content = [{ type: 'input_text', text: prompt }];
   if (imageDataUrl) {

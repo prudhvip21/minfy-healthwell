@@ -109,7 +109,7 @@ export default function MealInput({ onSubmit, busy, samples = [], slots = [], su
   return (
     <div className="stack">
       {slots.length > 0 && <SlotBar slots={slots} value={activeSlot} onChange={setSlot} disabled={busy} />}
-      <div className="tabs">
+      <div className="tabs spread">
         {[['photo', '📸 Photo'], ['voice', '🎙 Voice'], ['text', '⌨ Text']].map(([k, l]) => (
           <button key={k} className={`tab ${mode === k ? 'on' : ''}`} onClick={() => setMode(k)} disabled={busy}>{l}</button>
         ))}

@@ -225,6 +225,49 @@ export function PlanList({ slots = [], justIds = [], onItem, selectedId }) {
   );
 }
 
+/** "6:00AM" for one time, "6:00AM–7:00AM" when a slot spans several. */
+function timeSpan(items) {
+  const times = [...new Set(items.map((i) => i.time_hint).filter(Boolean))];
+  if (!times.length) return '';
+  return times.length === 1 ? times[0] : `${times[0]}–${times[times.length - 1]}`;
+}
+
+/**
+ * The day as a timetable: meal cards laid out in rows rather than one long
+ * strip, which is how a plan is actually read.
+ */
+export function PlanBoard({ slots = [], justIds = [], onItem, selectedId }) {
+  if (!slots.length) return <div className="empty">No plan for this date.</div>;
+  return (
+    <div className="board">
+      {slots.map((s) => (
+        <div className="meal" key={s.slot}>
+          <div className="meal-head">
+            <b>{s.slot}</b>
+            <span>{timeSpan(s.items)}</span>
+          </div>
+          {s.items.map((e) => (
+            <div
+              key={e.id}
+              className={`li ${e.status} ${e.flag ? 'flagged' : ''} ${justIds.includes(e.id) ? 'just' : ''}`}
+              onClick={onItem ? () => onItem(e) : undefined}
+              title={e.flag || `${e.qty ?? ''} ${e.unit || ''} · ${Math.round(e.kcal || 0)} kcal${e.macro_source === 'estimated' ? ' (estimated)' : ''}`}
+              style={{
+                cursor: onItem ? 'pointer' : undefined,
+                ...(selectedId === e.id ? { background: 'var(--green-soft)' } : {}),
+              }}
+            >
+              <i />
+              <span className="n">{e.name}</span>
+              <span className="q">{e.qty ?? ''}{e.unit ? ` ${e.unit}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** "Contains chicken, which the user's lacto-vegetarian diet excludes." → "not lacto-vegetarian" */
 export function shortFlag(reason = '') {
   const allergy = /records an? (\w+) allergy/.exec(reason);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import MealInput from '../MealInput.jsx';
 import {
-  Card, Lane, Spinner, Confidence, Degraded, ErrorBox, Verdict, TraceStrip, PlanList, Macros, Flow, slotsFor, shortFlag,
+  Card, Lane, Spinner, Confidence, Degraded, ErrorBox, Verdict, TraceStrip, PlanBoard, Macros, Flow, slotsFor, shortFlag,
 } from '../components.jsx';
 
 const SAMPLES = {
@@ -72,20 +72,16 @@ export default function CheckIn({ user, onChange }) {
   return (
     <>
       <div className="page-head">
-        <div>
-          <h1>Daily Check-in</h1>
-          <p className="sub">Photo, voice or text → structured rows. AI recognises; the engine decides.</p>
-        </div>
+        <div><h1>Daily Check-in</h1></div>
       </div>
 
-      <div className="split">
+      <div className="split phone-left">
         <div>
           <Lane kind="user" />
-          <div className="phone">
+          <div className="phone screen">
             <div className="phone-top">
               <small>{greet}, {user.name.split(' ')[0]}</small>
               <h2>{logged ? 'All done' : 'What did you eat?'}</h2>
-              {plan && <div className="small" style={{ marginTop: 6, opacity: 0.95 }}>🔥 {plan.streak.current}-day streak · goal {plan.streak.target}</div>}
             </div>
 
             <div className="phone-body stack">
@@ -103,17 +99,10 @@ export default function CheckIn({ user, onChange }) {
 
         <div className="stack">
           <Lane kind="system" />
-          <Card title="Pipeline">
-            <Flow nodes={[
-              { label: 'Input guardrail', kind: 'rule' },
-              { label: 'GPT-5 / Whisper', kind: 'ai' },
-              { label: 'Engine match', kind: 'rule' },
-              { label: 'Allergy gate', kind: 'rule' },
-              { label: 'Reward', kind: 'ai' },
-              { label: 'Swap agent', kind: 'ai' },
-              { label: 'Engine gate', kind: 'rule' },
-              { label: 'Dietitian', kind: 'human' },
-            ]} />
+
+          <Card title={`Today · ${plan?.date || ''}`} hint={plan?.plan?.source_file || 'fallback plan'}>
+            <PlanBoard slots={plan?.slots || []} justIds={justIds} />
+            <div style={{ marginTop: 14, maxWidth: 460 }}><Macros totals={plan?.totals} /></div>
           </Card>
 
           {logged && (
@@ -144,11 +133,17 @@ export default function CheckIn({ user, onChange }) {
             </>
           )}
 
-          <Card title={`Today · ${plan?.date || ''}`} hint={plan?.plan?.source_file || 'fallback plan'}>
-            <div className="grid-2" style={{ gap: 20 }}>
-              <PlanList slots={plan?.slots || []} justIds={justIds} />
-              <Macros totals={plan?.totals} />
-            </div>
+          <Card title="Pipeline">
+            <Flow nodes={[
+              { label: 'Input guardrail', kind: 'rule' },
+              { label: 'GPT-5 / Whisper', kind: 'ai' },
+              { label: 'Engine match', kind: 'rule' },
+              { label: 'Allergy gate', kind: 'rule' },
+              { label: 'Reward', kind: 'ai' },
+              { label: 'Swap agent', kind: 'ai' },
+              { label: 'Engine gate', kind: 'rule' },
+              { label: 'Dietitian', kind: 'human' },
+            ]} />
           </Card>
         </div>
       </div>
