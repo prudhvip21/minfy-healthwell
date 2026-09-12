@@ -297,9 +297,10 @@ app.get('/api/funnel', (req, res) => res.json(funnel()));
 
 /* ----------------------------- explain ----------------------------- */
 
-app.post('/api/explain/:userId/:entryId', h(async (req, res) => {
+app.post('/api/explain/:userId', h(async (req, res) => {
   const user = userOr404(req, res); if (!user) return;
-  res.json(await explainEntry({ user, entryId: Number(req.params.entryId) }));
+  const { entryIds = [], question = '' } = req.body;
+  res.json(await explainEntry({ user, entryIds, question: String(question).slice(0, 500) }));
 }));
 
 /* ---------------------------- assistant ---------------------------- */

@@ -245,12 +245,27 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .conf { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .conf .bar { width: 46px; height: 5px; }
 
-.ring { position: relative; width: 140px; height: 140px; }
+.mt { margin-top: 16px; }
+
+.score-top { display: flex; gap: 30px; align-items: center; }
+@media (max-width: 900px) { .score-top { flex-direction: column; align-items: stretch; } }
+
+.stackbar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--line-2); }
+.stackbar > i { display: block; height: 100%; transition: width .6s; }
+.stackbar > i.rest { background: var(--line-2); }
+
+.comp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; }
+@media (max-width: 1200px) { .comp-grid { grid-template-columns: 1fr; } }
+.comp .row { margin-bottom: 5px; font-size: 13px; }
+.comp .row b { font-variant-numeric: tabular-nums; }
+.comp .tiny { margin-top: 4px; }
+
+.ring { position: relative; width: 150px; height: 150px; flex: none; }
 .ring svg { transform: rotate(-90deg); }
 .ring .val {
   position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
 }
-.ring .val b { font-size: 38px; font-weight: 750; display: block; line-height: 1; }
+.ring .val b { font-size: 40px; font-weight: 750; display: block; line-height: 1; }
 .ring .val span { font-size: 12px; color: var(--muted); }
 
 /* ------------------------------ phone ------------------------------ */
@@ -305,6 +320,14 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .meal-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 5px; }
 .meal-head b { font-size: 12.5px; }
 .meal-head span { font-size: 10.5px; color: var(--muted); margin-left: auto; }
+.meal-head.clickable { cursor: pointer; user-select: none; }
+.meal-head .box {
+  width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid #cdd6d2;
+  display: grid; place-items: center; font-size: 10px; color: #fff; flex: none;
+}
+.meal.picked { border-color: var(--green); background: var(--green-soft); }
+.meal.picked .meal-head .box { background: var(--green); border-color: var(--green); }
+.meal .li.sel { background: var(--green-soft); box-shadow: inset 2px 0 0 var(--green); }
 
 .meal .li {
   display: flex; align-items: flex-start; gap: 6px;

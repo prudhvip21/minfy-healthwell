@@ -226,26 +226,30 @@ function timeSpan(items) {
  * The day as a timetable: meal cards laid out in rows rather than one long
  * strip, which is how a plan is actually read.
  */
-export function PlanBoard({ slots = [], justIds = [], onItem, selectedId }) {
+export function PlanBoard({ slots = [], justIds = [], onItem, selectedId, selectedIds = null, onSlot }) {
   if (!slots.length) return <div className="empty">No plan for this date.</div>;
+  const picked = (id) => (selectedIds ? selectedIds.includes(id) : selectedId === id);
   return (
     <div className="board">
-      {slots.map((s) => (
-        <div className="meal" key={s.slot}>
-          <div className="meal-head">
+      {slots.map((s) => {
+        const ids = s.items.map((i) => i.id);
+        const allPicked = selectedIds && ids.length > 0 && ids.every((id) => selectedIds.includes(id));
+        return (
+        <div className={`meal ${allPicked ? 'picked' : ''}`} key={s.slot}>
+          <div className={`meal-head ${onSlot ? 'clickable' : ''}`}
+            onClick={onSlot ? () => onSlot(s) : undefined}
+            title={onSlot ? 'Select the whole meal' : undefined}>
+            {onSlot && <span className="box">{allPicked ? '✓' : ''}</span>}
             <b>{s.slot}</b>
             <span>{timeSpan(s.items)}</span>
           </div>
           {s.items.map((e) => (
             <div
               key={e.id}
-              className={`li ${e.status} ${e.flag ? 'flagged' : ''} ${justIds.includes(e.id) ? 'just' : ''}`}
+              className={`li ${e.status} ${e.flag ? 'flagged' : ''} ${justIds.includes(e.id) ? 'just' : ''} ${picked(e.id) ? 'sel' : ''}`}
               onClick={onItem ? () => onItem(e) : undefined}
               title={e.flag || `${e.qty ?? ''} ${e.unit || ''} · ${Math.round(e.kcal || 0)} kcal${e.macro_source === 'estimated' ? ' (estimated)' : ''}`}
-              style={{
-                cursor: onItem ? 'pointer' : undefined,
-                ...(selectedId === e.id ? { background: 'var(--green-soft)' } : {}),
-              }}
+              style={{ cursor: onItem ? 'pointer' : undefined }}
             >
               <i />
               <span className="n">{e.name}</span>
@@ -253,7 +257,8 @@ export function PlanBoard({ slots = [], justIds = [], onItem, selectedId }) {
             </div>
           ))}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

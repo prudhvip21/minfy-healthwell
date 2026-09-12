@@ -596,20 +596,29 @@ export function behaviourScore(userId, endDate = today()) {
   const st = streak(userId, endDate);
   const since = daysSinceLastCheckin(userId, endDate);
 
-  const variety = get(
-    'SELECT COUNT(DISTINCT name) AS n FROM checkin_items WHERE user_id = ?',
-    userId,
-  ).n;
+  // Momentum: the 7-day rate against the 28-day one. Steady sits at half marks;
+  // a 25-point swing either way reaches the ends.
+  const momentum = clamp01(0.5 + (adh7 - adh28) * 2);
 
+  // Four components, each of which actually moves with what the user does.
+  // "Dietary variety" used to sit here and was dropped: against a repeating
+  // 6-day plan it measures the dietitian's plan, not the person, and scored
+  // full marks for every user including a lapsed one.
   const components = [
-    { key: 'adherence', label: 'Plan adherence (7d)', weight: 0.40, value: adh7, display: `${Math.round(adh7 * 100)}%` },
-    { key: 'consistency', label: 'Logging consistency (7d)', weight: 0.25, value: logged7 / 7, display: `${logged7}/7 days` },
-    { key: 'streak', label: 'Current streak', weight: 0.15, value: Math.min(st / 21, 1), display: `${st} days` },
-    { key: 'variety', label: 'Dietary variety', weight: 0.10, value: Math.min(variety / 25, 1), display: `${variety} distinct foods` },
-    { key: 'trend', label: 'Trend vs. 28-day average', weight: 0.10, value: clamp01(0.5 + (adh7 - adh28)), display: trendLabel(adh7, adh28) },
+    { key: 'adherence', label: 'Plan adherence', weight: 0.45, value: adh7, display: `${Math.round(adh7 * 100)}%`, detail: 'of planned items eaten, last 7 days' },
+    { key: 'consistency', label: 'Logging consistency', weight: 0.30, value: logged7 / 7, display: `${logged7} of 7 days`, detail: 'days with at least one check-in' },
+    { key: 'streak', label: 'Current streak', weight: 0.15, value: Math.min(st / 21, 1), display: st === 1 ? '1 day' : `${st} days`, detail: '21 days scores full marks' },
+    { key: 'momentum', label: 'Momentum', weight: 0.10, value: momentum, display: trendLabel(adh7, adh28), detail: 'this week vs the 28-day average; steady is half marks' },
   ];
 
-  const score = Math.round(components.reduce((t, c) => t + c.weight * clamp01(c.value), 0) * 100);
+  // Score is the sum of the points shown, not a separately rounded total —
+  // otherwise the parts on screen add up to something other than the headline.
+  const scored = components.map((c) => ({
+    ...c,
+    max: Math.round(c.weight * 100),
+    contribution: Math.round(c.weight * clamp01(c.value) * 100),
+  }));
+  const score = scored.reduce((t, c) => t + c.contribution, 0);
 
   // Lapsed is about recency, not arithmetic: five silent days is lapsed
   // whatever the historical average says.
@@ -619,8 +628,8 @@ export function behaviourScore(userId, endDate = today()) {
   return {
     score,
     band,
-    components: components.map((c) => ({ ...c, contribution: Math.round(c.weight * clamp01(c.value) * 100) })),
-    facts: { adherence7: adh7, adherence28: adh28, loggedDays7: logged7, streak: st, daysSinceLastCheckin: since, variety },
+    components: scored,
+    facts: { adherence7: adh7, adherence28: adh28, loggedDays7: logged7, streak: st, daysSinceLastCheckin: since },
   };
 }
 
@@ -628,7 +637,7 @@ const clamp01 = (n) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
 
 function trendLabel(a7, a28) {
   const d = Math.round((a7 - a28) * 100);
-  if (d > 5) return `up ${d} pts`;
-  if (d < -5) return `down ${Math.abs(d)} pts`;
-  return 'flat';
+  if (d > 5) return `up ${d}`;
+  if (d < -5) return `down ${Math.abs(d)}`;
+  return 'steady';
 }
