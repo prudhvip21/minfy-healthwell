@@ -147,25 +147,27 @@ export default function Score({ user }) {
           <Trend points={data.history} />
         </Card>
 
-        <Card title="Dynamic streak" hint="rule-based target">
+        <Card title="Streak milestones" hint="motivational · set by rules">
           <div className="row" style={{ gap: 26, marginBottom: 14 }}>
             <div>
               <div className="tiny muted">CURRENT</div>
               <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>🔥 {st.current}</div>
             </div>
             <div>
-              <div className="tiny muted">NEXT TARGET</div>
+              <div className="tiny muted">NEXT MILESTONE</div>
               <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>{st.target}</div>
             </div>
             <div className="grow">
-              <div className="tiny muted">LADDER · {st.band}</div>
+              <div className="tiny muted">MILESTONES · {st.band}</div>
               <div className="row" style={{ gap: 6, marginTop: 6 }}>
                 {st.ladder.map((t) => <span key={t} className={`chip ${t === st.target ? 'green' : ''}`}>{t}d</span>)}
               </div>
             </div>
           </div>
           <Bar value={st.target ? st.current / st.target : 0} />
-          <p className="small muted" style={{ marginTop: 10 }}>{st.rationale}</p>
+          <p className="small muted" style={{ marginTop: 10 }}>
+            {st.rationale} Separate from the score above, which grades every user out of 21 unbroken days.
+          </p>
         </Card>
       </div>
     </>

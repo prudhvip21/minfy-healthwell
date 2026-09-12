@@ -607,7 +607,11 @@ export function behaviourScore(userId, endDate = today()) {
   const components = [
     { key: 'adherence', label: 'Plan adherence', weight: 0.45, value: adh7, display: `${Math.round(adh7 * 100)}%`, detail: 'of planned items eaten, last 7 days' },
     { key: 'consistency', label: 'Logging consistency', weight: 0.30, value: logged7 / 7, display: `${logged7} of 7 days`, detail: 'days with at least one check-in' },
-    { key: 'streak', label: 'Current streak', weight: 0.15, value: Math.min(st / 21, 1), display: st === 1 ? '1 day' : `${st} days`, detail: '21 days scores full marks' },
+    // Scored on a fixed scale so the number means the same thing for every
+    // user. The personalised milestone ladder is a separate, motivational
+    // device — scoring against a moving target would drop a user's score the
+    // moment they hit a milestone and the next one appears.
+    { key: 'streak', label: 'Current streak', weight: 0.15, value: Math.min(st / 21, 1), display: st === 1 ? '1 day' : `${st} days`, detail: 'scored out of 21 unbroken days' },
     { key: 'momentum', label: 'Momentum', weight: 0.10, value: momentum, display: trendLabel(adh7, adh28), detail: 'this week vs the 28-day average; steady is half marks' },
   ];
 
