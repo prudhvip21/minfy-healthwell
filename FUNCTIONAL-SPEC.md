@@ -2,7 +2,7 @@
 
 What each screen shows, and how every number on it is produced.
 
-The governing rule throughout: **the engine decides, agents propose.** `server/engine.js`
+The governing rule throughout: **the engine decides, agents propose.** `backend/engine.py`
 holds every calculation and every write path. Agents (GPT-5) turn unstructured input into
 structure and English, and can never write to a plan.
 
@@ -18,7 +18,7 @@ Three sources of numbers, distinguished everywhere they appear:
 
 ## 0. Foundations
 
-### 0.1 Plan import — `server/planImport.js`
+### 0.1 Plan import — `backend/plan_import.py`
 
 Runs at first boot, on `npm run import`, or from Overview → Re-parse.
 
@@ -61,7 +61,7 @@ Every row on a day is a `plan_entries` record with one of:
 
 This table is the reason off-plan food raises your calories without lowering adherence.
 
-### 0.5 Macro estimation — `estimateMacros(name, qty, unit)`
+### 0.5 Macro estimation — `estimate_macros(name, qty, unit)`
 
 The source document contains **no macros at all**, so every calorie figure in the app is an
 engine estimate and is labelled `*`.
@@ -94,7 +94,7 @@ Deliberate outcomes: `tomato dal ↔ Tomato Pappu` = 1.00 (match);
 
 Matching is attempted **within the chosen meal slot first**, then across the rest of the day.
 
-### 0.7 Profile conflicts — `profileConflicts(user, items)`
+### 0.7 Profile conflicts — `profile_conflicts(user, items)`
 
 A hard, deterministic gate. No model involvement, and no model confidence can overrule it.
 
@@ -134,7 +134,7 @@ Two different consequences, by design:
 |---|---|
 | Meal card time | single time, or `first–last` when a slot spans several (`6:00AM–7:00AM`) |
 | Item dot colour | green eaten · blue added by swap · orange off-plan · red off-plan with conflict · grey planned |
-| `Calories 639 / 1798` | consumed / planned, from `dayTotals` |
+| `Calories 639 / 1798` | consumed / planned, from `day_totals` |
 | `incl. 300 kcal off-plan` | sum of `offplan` entries |
 | `*` / "estimated" | any entry with `macro_source = 'estimated'` |
 
@@ -157,7 +157,7 @@ omit them.
 
 `Input guardrail → GPT-5 / Whisper → Engine match → Allergy gate → Reward → Swap agent → Engine gate → Dietitian`
 
-1. **Input guardrail** (`server/guardrails.js`): prompt-injection patterns flagged; email, Indian
+1. **Input guardrail** (`backend/guardrails.py`): prompt-injection patterns flagged; email, Indian
    phone, Aadhaar-like and PAN-like strings redacted before the call.
 2. **Extraction**: model returns items with `name, qty, unit, confidence, notes` + an
    `overall_confidence` and a one-line observation. It is explicitly told not to estimate calories.
@@ -185,7 +185,7 @@ omit them.
 | Element | Calculation |
 |---|---|
 | `eaten` / `off-plan` / `still to come` | counts of today's entries by status |
-| Macro bars | `dayTotals` consumed vs planned |
+| Macro bars | `day_totals` consumed vs planned |
 | "N kcal over the day's plan" | `consumed.kcal − planned.kcal`, shown when positive |
 | Off-plan list | `offplan` entries with slot, kcal, and conflict label |
 
@@ -204,7 +204,7 @@ It returns: `remove_entry_ids`, `move_items [{entry_id, to_date, why}]`, `add_it
 Instructed to prefer **moving** an untouched dish to a later day over dropping it, to compensate
 only in later meals, and never to touch anything already eaten.
 
-### Engine validation — `validateSwap`
+### Engine validation — `validate_swap`
 
 - **Moves** are accepted only if the entry is `planned`/`added`, the target is **after today** and
   **within 14 days**.
@@ -230,7 +230,7 @@ only in later meals, and never to touch anything already eaten.
 
 On dietitian approval the engine **re-validates before writing**, because the day may have moved on.
 
-`applySwap` is the only function that changes a plan: removals → `swapped`; moves → source
+`apply_swap` is the only function that changes a plan: removals → `swapped`; moves → source
 `swapped` + a copy on the target date as `planned`; additions → new `added` entries.
 
 ---
@@ -387,14 +387,14 @@ One line per item: icon, summary, user, Approve / reject. Details only when a ro
 raised **once per document, not per user** (`"Fruit" · Mid-Morning ×3`); profile conflicts are
 grouped by the matched ingredient (`ghee in 6 items · dairy allergy`).
 
-Approving a swap **re-runs `validateSwap`** first; if the day has changed such that it is no longer
+Approving a swap **re-runs `validate_swap`** first; if the day has changed such that it is no longer
 valid, it is rejected instead of applied.
 
 ---
 
 ## 8. Trace Console
 
-Every model call, captured at the single chokepoint in `server/openai.js`.
+Every model call, captured at the single chokepoint in `backend/llm.py`.
 
 | Column | Source |
 |---|---|
@@ -405,7 +405,7 @@ Every model call, captured at the single chokepoint in `server/openai.js`.
 | est. cost | `in/1e6 × $1.25 + out/1e6 × $10.00` for gpt-5; Whisper `minutes × $0.006` |
 | status | ok · degraded · error · blocked |
 
-Pricing is a **configured constant** in `openai.js`, not a live lookup — hence "est.".
+Pricing is a **configured constant** in `backend/llm.py`, not a live lookup — hence "est.".
 
 **Degraded mode**: a failed call replays the stored response for an **identical** request only —
 same route, same user, same input hash. It is never a stand-in answer for a different question,
@@ -452,7 +452,7 @@ yesterday (a demo left overnight would otherwise show a 20-day streak as 0).
 Seeded check-ins mark the first `round(items × adherence)` items of each day as eaten.
 
 **Reset** (top bar) clears check-ins, proposals, nudges, events and traces, then re-seeds history.
-It keeps the parsed plans, so it costs nothing at the API. `node server/reset.js --reparse`
+It keeps the parsed plans, so it costs nothing at the API. `npm run reset -- --reparse`
 goes all the way back to the documents.
 
 ---

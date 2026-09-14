@@ -5,17 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "node --env-file-if-exists=.env server/index.js",
-    "dev:api:watch": "node --env-file-if-exists=.env --watch server/index.js",
+    "dev:api": "uv run uvicorn backend.main:app --port 4000",
+    "dev:api:watch": "uv run uvicorn backend.main:app --port 4000 --reload --reload-dir backend",
     "dev:web": "vite",
-    "import": "node --env-file-if-exists=.env server/planImport.js",
+    "import": "uv run python -m backend.plan_import",
+    "reset": "uv run python -m backend.reset",
+    "test": "uv run python tests/test_engine_golden.py",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "mammoth": "^1.8.0",
-    "openai": "^7.15.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

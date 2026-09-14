@@ -1,22 +1,28 @@
-import { DatabaseSync } from 'node:sqlite';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+"""SQLite storage. Same schema as the original service, so existing data carries over."""
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const ROOT = path.resolve(here, '..');
-export const DATA_DIR = path.join(ROOT, 'data');
-export const PLANS_DIR = path.join(ROOT, 'plans');
-const DB_PATH = path.join(DATA_DIR, 'healthwise.db');
+from __future__ import annotations
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(PLANS_DIR, { recursive: true });
+import json
+import os
+import sqlite3
+import threading
+from pathlib import Path
 
-export const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
+ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT / 'data'
+PLANS_DIR = ROOT / 'plans'
+DB_PATH = Path(os.environ.get('HW_DB_PATH') or DATA_DIR / 'healthwise.db')
 
-const SCHEMA = `
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+PLANS_DIR.mkdir(parents=True, exist_ok=True)
+
+# One connection shared by FastAPI's worker threads, serialised by a lock.
+# Autocommit mode matches how the original service wrote.
+_conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
+_conn.row_factory = sqlite3.Row
+_lock = threading.RLock()
+
+SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -84,7 +90,7 @@ CREATE TABLE IF NOT EXISTS plan_entries (
   qty REAL, unit TEXT,
   kcal REAL, protein_g REAL, carbs_g REAL, fat_g REAL,
   macro_source TEXT DEFAULT 'plan',
-  status TEXT DEFAULT 'planned',        -- planned | eaten | missed | swapped | added
+  status TEXT DEFAULT 'planned',        -- planned | eaten | missed | swapped | added | offplan
   swapped_from TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
@@ -95,7 +101,7 @@ CREATE TABLE IF NOT EXISTS checkins (
   user_id TEXT NOT NULL REFERENCES users(id),
   date TEXT NOT NULL,
   slot TEXT,
-  modality TEXT,                        -- photo | voice | text
+  modality TEXT,                        -- photo | voice | text | menu
   raw_text TEXT,
   transcript TEXT,
   image_ref TEXT,
@@ -111,7 +117,7 @@ CREATE TABLE IF NOT EXISTS checkin_items (
   qty REAL, unit TEXT,
   kcal REAL, protein_g REAL, carbs_g REAL, fat_g REAL,
   confidence REAL,
-  verdict TEXT,                         -- matched | unplanned | blocked
+  verdict TEXT,                         -- matched | unplanned | flagged
   block_reason TEXT,
   matched_entry_id INTEGER REFERENCES plan_entries(id)
 );
@@ -121,7 +127,7 @@ CREATE TABLE IF NOT EXISTS checkin_items (
 CREATE TABLE IF NOT EXISTS plan_changes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL REFERENCES users(id),
-  kind TEXT NOT NULL,                   -- swap | parse_review | event
+  kind TEXT NOT NULL,                   -- swap | parse_review | exposure
   summary TEXT,
   proposal_json TEXT,
   engine_json TEXT,
@@ -142,7 +148,7 @@ CREATE TABLE IF NOT EXISTS nudges (
   copy TEXT,
   rationale_json TEXT,
   cohort TEXT,
-  status TEXT DEFAULT 'queued',         -- queued | sent | opened | ignored
+  status TEXT DEFAULT 'queued',         -- queued | sent | opened | ignored | escalated
   trace_id INTEGER,
   created_at TEXT DEFAULT (datetime('now'))
 );
@@ -196,73 +202,87 @@ CREATE TABLE IF NOT EXISTS cohort_stats (
   total INTEGER,
   PRIMARY KEY (cohort, week)
 );
-`;
+"""
 
-db.exec(SCHEMA);
+with _lock:
+    _conn.execute('PRAGMA journal_mode = WAL')
+    _conn.execute('PRAGMA foreign_keys = ON')
+    _conn.executescript(SCHEMA)
+    # Additive migrations for databases created before a column existed.
+    for _table, _col, _type in [('plan_entries', 'flag', 'TEXT')]:
+        _cols = [r['name'] for r in _conn.execute(f'PRAGMA table_info({_table})')]
+        if _col not in _cols:
+            _conn.execute(f'ALTER TABLE {_table} ADD COLUMN {_col} {_type}')
 
-// Additive migrations for databases created before a column existed.
-for (const [table, col, type] of [['plan_entries', 'flag', 'TEXT']]) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
-  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
-}
+# Tables wiped by a demo reset, in FK-safe order.
+RESETTABLE = [
+    'checkin_items', 'checkins', 'plan_changes', 'nudges', 'events',
+    'traces', 'plan_entries', 'plan_items', 'plan_days', 'plans',
+    'cohort_stats', 'partners', 'users',
+]
 
-/** Tables wiped by a demo reset, in FK-safe order. */
-const RESETTABLE = [
-  'checkin_items', 'checkins', 'plan_changes', 'nudges', 'events',
-  'traces', 'plan_entries', 'plan_items', 'plan_days', 'plans',
-  'cohort_stats', 'partners', 'users',
-];
+# What survives a reset that keeps the parsed documents.
+PLAN_TABLES = ['plans', 'plan_days', 'plan_items', 'users']
 
-/** What survives a reset that keeps the parsed documents. */
-const PLAN_TABLES = ['plans', 'plan_days', 'plan_items', 'users'];
 
-/**
- * @param {{keepPlans?: boolean}} opts keepPlans preserves users and the parsed
- *   plan documents, so a demo reset costs nothing at the API.
- */
-export function wipe({ keepPlans = false } = {}) {
-  const tables = keepPlans ? RESETTABLE.filter((t) => !PLAN_TABLES.includes(t)) : RESETTABLE;
-  db.exec('PRAGMA foreign_keys = OFF');
-  for (const t of tables) db.exec(`DELETE FROM ${t}`);
-  db.exec(`DELETE FROM sqlite_sequence WHERE name IN ('${tables.join("','")}')`);
-  db.exec('PRAGMA foreign_keys = ON');
-}
+def wipe(keep_plans: bool = False) -> None:
+    """Clear demo state. keep_plans preserves users and parsed documents, so a reset costs nothing at the API."""
+    tables = [t for t in RESETTABLE if t not in PLAN_TABLES] if keep_plans else RESETTABLE
+    with _lock:
+        _conn.execute('PRAGMA foreign_keys = OFF')
+        for t in tables:
+            _conn.execute(f'DELETE FROM {t}')
+        placeholders = ','.join('?' for _ in tables)
+        _conn.execute(f'DELETE FROM sqlite_sequence WHERE name IN ({placeholders})', tables)
+        _conn.execute('PRAGMA foreign_keys = ON')
 
-/* ------------------------------------------------------------------ *
- * Thin query helpers. node:sqlite returns null-prototype objects, so
- * everything is spread into a plain object before it leaves this file.
- * ------------------------------------------------------------------ */
 
-export function all(sql, ...params) {
-  return db.prepare(sql).all(...params).map((r) => ({ ...r }));
-}
+def all_rows(sql: str, *params) -> list[dict]:
+    with _lock:
+        return [dict(r) for r in _conn.execute(sql, params).fetchall()]
 
-export function get(sql, ...params) {
-  const row = db.prepare(sql).get(...params);
-  return row ? { ...row } : undefined;
-}
 
-export function run(sql, ...params) {
-  return db.prepare(sql).run(...params);
-}
+def get_row(sql: str, *params) -> dict | None:
+    with _lock:
+        row = _conn.execute(sql, params).fetchone()
+    return dict(row) if row else None
 
-export function insert(table, obj) {
-  const keys = Object.keys(obj);
-  const sql = `INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`;
-  const info = db.prepare(sql).run(...keys.map((k) => normalise(obj[k])));
-  return Number(info.lastInsertRowid);
-}
 
-/** SQLite takes no booleans, undefined, or objects — coerce at the boundary. */
-function normalise(v) {
-  if (v === undefined || v === null) return null;
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  if (typeof v === 'object') return JSON.stringify(v);
-  return v;
-}
+def run(sql: str, *params):
+    with _lock:
+        return _conn.execute(sql, params)
 
-export function json(value, fallback) {
-  if (value === null || value === undefined) return fallback;
-  if (typeof value === 'object') return value;
-  try { return JSON.parse(value); } catch { return fallback; }
-}
+
+def to_json(value) -> str:
+    """Compact JSON, like JSON.stringify."""
+    return json.dumps(value, separators=(',', ':'), ensure_ascii=False, default=str)
+
+
+def _normalise(v):
+    """SQLite takes no booleans or containers — coerce at the boundary."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return 1 if v else 0
+    if isinstance(v, (dict, list, tuple)):
+        return to_json(v)
+    return v
+
+
+def insert(table: str, obj: dict) -> int:
+    keys = list(obj.keys())
+    sql = f"INSERT INTO {table} ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
+    with _lock:
+        cur = _conn.execute(sql, [_normalise(obj[k]) for k in keys])
+        return int(cur.lastrowid)
+
+
+def from_json(value, fallback):
+    if value is None:
+        return fallback
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return fallback
